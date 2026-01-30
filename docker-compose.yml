@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  # ----------------------------
+  # Data Storage
+  # ----------------------------
+  minio:
+    image: minio/minio
+    container_name: bus-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ----------------------------
+  # APIs
+  # ----------------------------
+  upload_api:
+    build: .
+    container_name: bus-upload-api
+    ports:
+      - "4000:4000"
+    environment:
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - PYTHONUNBUFFERED=1
+    command: gunicorn upload_api:app -w 4 --worker-class uvicorn.workers.UvicornWorker -b 0.0.0.0:4000
+    depends_on:
+      minio:
+        condition: service_healthy
+
+  results_api:
+    build: .
+    container_name: bus-results-api
+    ports:
+      - "8001:8001"
+    environment:
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - PYTHONUNBUFFERED=1
+    command: uvicorn results_api:app --host 0.0.0.0 --port 8001
+    depends_on:
+      minio:
+        condition: service_healthy
+
+  # ----------------------------
+  # Worker
+  # ----------------------------
+  consumer:
+    build: .
+    container_name: bus-consumer
+    environment:
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - CONTAINER_API=${AI_SERVICE_URL}
+      - POLL_INTERVAL=5
+      - PYTHONUNBUFFERED=1
+    command: python consumer.py
+    depends_on:
+      minio:
+        condition: service_healthy
+
+volumes:
+  minio_data:
