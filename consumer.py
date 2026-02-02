@@ -98,7 +98,7 @@ def update_job_status(job_id, status, results=None):
         metadata['status'] = status
         metadata['updated_at'] = datetime.now().isoformat()
         if results:
-            metadata['results'] = results
+            pass # Do not add results to metadata as per user request
         
         # Upload
         metadata_json = json.dumps(metadata, indent=2)

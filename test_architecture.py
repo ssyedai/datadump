@@ -43,8 +43,8 @@ def test_flow():
     # 1. Upload
     print("1️⃣  Uploading file...")
     try:
-        dummy_zip = read_zip_as_buffer('Fake2.zip')
-        files = {'file': ('Fake2.zip', dummy_zip, 'application/zip')}
+        dummy_zip = read_zip_as_buffer('result.zip')
+        files = {'file': ('result.zip', dummy_zip, 'application/zip')}
         data = {
             'bus_number': 'TEST-BUS-001',
             'latlong': '0.0,0.0'
@@ -86,7 +86,7 @@ def test_flow():
                     end_time = time.perf_counter()
                     print("\n✅ SUCCESS: Job processed successfully!")
                     print(f"   Results: {job.get('results')}")
-                    print(f"   Processing time: {end_time - start_time:.2f} seconds")
+                    print(f"   Processing time: {end_time - start_time} seconds")
                     return
                 elif status == 'failed':
                     print("\n❌ FAILURE: Job failed processing.")
@@ -94,7 +94,7 @@ def test_flow():
                     print("   Check consumer logs: docker-compose logs consumer")
                     return
                     
-            time.sleep(200)
+            time.sleep(100)
             attempts += 1
             
         except Exception as e:

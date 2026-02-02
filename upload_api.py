@@ -165,6 +165,24 @@ async def upload(
             content_type='application/json'
         )
         
+        # Save upload_log.json
+        log_data = {
+            "job_id": job_id,
+            "timestamp": timestamp.isoformat(),
+            "device_info": metadata['device_info'],
+            "status": "success",
+            "message": "Upload completed successfully"
+        }
+        log_json = json.dumps(log_data, indent=2)
+        log_bytes = log_json.encode('utf-8')
+        minio_client.put_object(
+            MINIO_BUCKET,
+            f"{job_id}/upload_log.json",
+            data=io.BytesIO(log_bytes),
+            length=len(log_bytes),
+            content_type='application/json'
+        )
+
         print(f"✅ Stored to MinIO: {job_id}")
         print(f"   Images: {file_count}")
         print(f"   Size: {zip_size_mb:.2f} MB")
@@ -176,6 +194,7 @@ async def upload(
             "latlong": latlong,
             "total_images": file_count,
             "status": "queued",
+            "device_info": metadata['device_info'],
             "message": f"✅ Upload successful! Job queued: {job_id}"
         }
         
