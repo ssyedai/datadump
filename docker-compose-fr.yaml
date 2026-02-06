@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  # Instance 1
+  fr-service-1:
+    image: bus-alert-system:latest
+    ports:
+      - "8000:8000"
+    environment:
+      PORT: 8000
+    # Add GPU support if needed
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+    # Instance 2
+  fr-service-2:
+    image: bus-alert-system:latest
+    ports:
+      - "8001:8001"
+    environment:
+      PORT: 8001
+
+  # Instance 3
+  fr-service-3:
+    image: bus-alert-system:latest
+    ports:
+      - "8002:8002"
+    environment:
+      PORT: 8002
+
+  # Instance 4
+  fr-service-4:
+    image: bus-alert-system:latest
+    ports:
+      - "8003:8003"
+    environment:
+      PORT: 8003

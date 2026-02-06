@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gpu-proxy
+  labels:
+    app: gpu-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gpu-proxy
+  template:
+    metadata:
+      labels:
+        app: gpu-proxy
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: nginx-conf
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+      volumes:
+      - name: nginx-conf
+        configMap:
+          name: nginx-conf
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gpu-proxy
+spec:
+  selector:
+    app: gpu-proxy
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 30080
+  type: NodePort

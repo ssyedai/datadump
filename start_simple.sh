@@ -1,8 +1,9 @@
 #!/bin/bash
 
 # ==================================
-# Simple Start Script - 3-File Architecture
+# Robust Start Script - 3-File Architecture
 # Auto-kill port conflicts and restart
+# Works with or without Docker
 # ==================================
 
 echo "=================================="
@@ -13,58 +14,60 @@ echo "=================================="
 # Helper Functions
 # ----------------------------
 
-# Kill process using a port
 kill_port() {
     local PORT=$1
     echo "   ⚠️  Port $PORT in use. Killing process..."
-    lsof -t -i:$PORT | xargs -r kill -9
+    if command -v lsof >/dev/null 2>&1; then
+        lsof -t -i:$PORT | xargs -r kill -9
+    else
+        echo "   ⚠️ lsof not found, cannot kill port $PORT automatically"
+    fi
     sleep 1
 }
 
-# Start a service with health check
 start_service() {
     local NAME=$1
     local PORT=$2
-    local START_CMD=$3
+    local CMD=$3
     local LOG_FILE=$4
 
     echo -e "\n🚀 Starting $NAME (Port $PORT)..."
-
-    # Try starting
-    $START_CMD &> $LOG_FILE &
+    eval "$CMD" &> $LOG_FILE &
     local PID=$!
     sleep 2
 
-    # Check if port is open
-    if ! curl -s http://localhost:$PORT/health > /dev/null 2>&1; then
-        echo "   ❌ $NAME failed to start, trying to free port $PORT..."
-        kill_port $PORT
-        sleep 1
-        $START_CMD &> $LOG_FILE &
-        PID=$!
-        sleep 2
-        if ! curl -s http://localhost:$PORT/health > /dev/null 2>&1; then
-            echo "   ❌ $NAME still failed to start. Check log: $LOG_FILE"
-            return 1
+    for i in {1..3}; do
+        if curl -s http://localhost:$PORT/health > /dev/null 2>&1; then
+            echo "   ✅ $NAME running (PID: $PID)"
+            echo $PID
+            return 0
+        else
+            echo "   ⚠️ $NAME not responding yet (retry $i)..."
+            kill_port $PORT
+            eval "$CMD" &> $LOG_FILE &
+            PID=$!
+            sleep 3
         fi
-    fi
-    echo "   ✅ $NAME running (PID: $PID)"
-    echo $PID
+    done
+
+    echo "   ❌ $NAME failed to start. Check log: $LOG_FILE"
+    return 1
 }
 
 # ----------------------------
-# Check Docker permissions
+# Check Docker / MinIO
 # ----------------------------
-if ! docker ps &> /dev/null; then
-    echo ""
-    echo "⚠️  Docker Permission Issue Detected!"
-    echo ""
-    read -p "Continue without MinIO Docker? (y/n) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then exit 1; fi
-    SKIP_MINIO=true
+SKIP_MINIO=true
+
+if command -v docker >/dev/null 2>&1; then
+    if docker info &> /dev/null; then
+        SKIP_MINIO=false
+        echo "✅ Docker is available"
+    else
+        echo "⚠️ Docker installed but permission denied. MinIO will be skipped"
+    fi
 else
-    SKIP_MINIO=false
+    echo "⚠️ Docker not installed. MinIO will be skipped"
 fi
 
 # ----------------------------
@@ -73,24 +76,25 @@ fi
 if [ "$SKIP_MINIO" = false ]; then
     echo -e "\n1️⃣ Checking MinIO..."
     if curl -s http://localhost:9000/minio/health/live > /dev/null 2>&1; then
-        echo "   ✅ MinIO is running"
+        echo "   ✅ MinIO is already running"
     else
         kill_port 9000
         kill_port 9001
+        docker rm -f minio 2>/dev/null || true
         docker run -d --name minio -p 9000:9000 -p 9001:9001 \
             -e "MINIO_ROOT_USER=minioadmin" \
             -e "MINIO_ROOT_PASSWORD=minioadmin" \
-            minio/minio server /data --console-address ":9001" 2>&1
+            minio/minio server /data --console-address ":9001"
         sleep 5
         if curl -s http://localhost:9000/minio/health/live > /dev/null 2>&1; then
             echo "   ✅ MinIO started"
         else
             echo "   ❌ MinIO failed"
-            exit 1
+            SKIP_MINIO=true
         fi
     fi
 else
-    echo -e "\n1️⃣ Skipping MinIO Docker..."
+    echo -e "\n1️⃣ Skipping MinIO..."
 fi
 
 # ----------------------------
@@ -102,7 +106,7 @@ start_service "Upload API" 4000 "$UPLOAD_CMD" "upload_api.log"
 # ----------------------------
 # Consumer
 # ----------------------------
-echo -e "\n3️⃣ Starting Consumer..."
+echo -e "\n2️⃣ Starting Consumer..."
 pkill -f "consumer.py" 2>/dev/null || true
 nohup python consumer.py > consumer.log 2>&1 &
 echo $! > consumer.pid

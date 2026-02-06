@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bus-consumer
+  labels:
+    app: bus-consumer
+spec:
+  replicas: 3  # We can now scale this up!
+  selector:
+    matchLabels:
+      app: bus-consumer
+  template:
+    metadata:
+      labels:
+        app: bus-consumer
+    spec:
+      containers:
+      - name: consumer
+        image: bus-alert-system:latest
+        imagePullPolicy: IfNotPresent
+        command: ["python", "consumer.py"]
+        env:
+        - name: MINIO_ENDPOINT
+          value: "minio:9000"
+        - name: MINIO_ACCESS_KEY
+          value: "minioadmin"
+        - name: MINIO_SECRET_KEY
+          value: "minioadmin"
+        - name: CONTAINER_API
+          value: "http://gpu-proxy" # HITS THE PROXY, NOT THE GPU DIRECTLY
+        - name: POLL_INTERVAL
+          value: "8"
